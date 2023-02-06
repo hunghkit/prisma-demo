@@ -51,6 +51,18 @@ const Post = objectType({
   },
 })
 
+const Product = objectType({
+  name: 'Product',
+  definition(t) {
+    t.nonNull.string('id')
+    t.nonNull.string('name')
+    t.nonNull.string('image')
+    t.nonNull.float('price')
+    t.nonNull.string('description')
+  },
+})
+
+
 export const Query = queryType({
   definition(t) {
     t.nonNull.list.nonNull.field('allUsers', {
@@ -87,11 +99,67 @@ export const Query = queryType({
         })
       },
     })
+
+    t.nonNull.list.nonNull.field('products', {
+      type: 'Product',
+      args: {
+        searchString: stringArg(),
+        skip: intArg(),
+        take: intArg(),
+      },
+      resolve: (_parent, args, context: Context) => {
+        const or = args.searchString
+          ? {
+              OR: [
+                { name: { contains: args.searchString } },
+                { description: { contains: args.searchString } },
+              ],
+            }
+          : {}
+
+        return context.prisma.product.findMany({
+          where: {
+            ...or,
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+          take: args.take || undefined,
+          skip: args.skip || undefined,
+        })
+      },
+    })
   },
 })
 
 export const Mutation = mutationType({
   definition(t) {
+    t.field('createProduct', {
+      type: 'Product',
+      args: {
+        data: nonNull(
+          arg({
+            type: 'ProductCreateInput',
+          }),
+        ),
+      },
+      resolve: async (_, args, context: Context) => {
+        const newProduct = await context.prisma.product.create({
+          data: {
+            name: args.data.name,
+            price: args.data.price,
+            image: args.data.image,
+            description: args.data.description,
+          },
+        })
+
+        // publish the subscription here
+        context.pubsub.publish('newProduct', newProduct)
+        return newProduct
+      },
+    })
+
+
     t.field('createDraft', {
       type: 'Post',
       args: {
@@ -151,6 +219,16 @@ export const Mutation = mutationType({
 
 export const Subscription = subscriptionType({
   definition(t) {
+    t.field('newProduct', {
+      type: 'Product',
+      subscribe(_root, _args, ctx) {
+        return ctx.pubsub.asyncIterator('newProduct')
+      },
+      resolve(payload) {
+        return payload
+      },
+    })
+
     t.field('newPost', {
       type: 'Post',
       subscribe(_root, _args, ctx) {
@@ -181,8 +259,27 @@ const PostCreateInput = inputObjectType({
   },
 })
 
+const ProductCreateInput = inputObjectType({
+  name: 'ProductCreateInput',
+  definition(t) {
+    t.nonNull.string('name')
+    t.float('price')
+    t.string('image')
+    t.string('description')
+  },
+})
+
 export const schema = makeSchema({
-  types: [User, Post, Query, Mutation, Subscription, PostCreateInput],
+  types: [
+    User,
+    Post,
+    Product,
+    Query,
+    Mutation,
+    Subscription,
+    PostCreateInput,
+    ProductCreateInput,
+  ],
   outputs: {
     schema: __dirname + '/../schema.graphql',
     typegen: __dirname + '/generated/nexus.ts',

@@ -4,6 +4,7 @@
 
 type Mutation {
   createDraft(authorEmail: String, data: PostCreateInput!): Post
+  createProduct(data: ProductCreateInput!): Product
   togglePublishPost(id: Int!): Post
 }
 
@@ -20,13 +21,30 @@ input PostCreateInput {
   title: String!
 }
 
+type Product {
+  description: String!
+  id: String!
+  image: String!
+  name: String!
+  price: Float!
+}
+
+input ProductCreateInput {
+  description: String
+  image: String
+  name: String!
+  price: Float
+}
+
 type Query {
   allUsers: [User!]!
   feed(searchString: String, skip: Int, take: Int): [Post!]!
+  products(searchString: String, skip: Int, take: Int): [Product!]!
 }
 
 type Subscription {
   newPost: Post
+  newProduct: Product
   postPublished: Post
 }
 
